@@ -1003,7 +1003,7 @@ function OriginMapView({ dark, countries, selectedCountry, setSelectedCountry, o
           {countryData.map(([country]) => (
             <button key={country} onClick={() => setSelectedCountry(selectedCountry === country ? null : country)}
               className={`px-4 py-1.5 rounded-full text-xs font-medium cursor-pointer transition ${selectedCountry === country ? 'bg-[#8b5e3c] text-white' : dark ? 'bg-[#3d2c1e] hover:bg-[#4a3828]' : 'bg-[#f5efe7] hover:bg-[#e8ddd0]'}`}>
-              {country} ({countries.get(country)?.length})
+              {country} ({countries[country]?.length})
             </button>
           ))}
         </div>
