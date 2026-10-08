@@ -21,7 +21,7 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #faf7f2;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -33,7 +33,25 @@ body {
   background: #8b5e3c;
 }
 
-/* Smooth transitions for images */
+html.dark ::-webkit-scrollbar-thumb {
+  background: #3d2c1e;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #8b5e3c;
+}
+
+/* Smooth transitions */
 img {
   transition: opacity 0.3s ease;
+}
+
+/* Toggle switch fix */
+.translate-x-5\.5 {
+  transform: translateX(1.25rem);
+}
+
+/* Select arrow for dark mode */
+html.dark select {
+  color-scheme: dark;
 }

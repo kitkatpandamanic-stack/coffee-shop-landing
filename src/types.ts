@@ -13,11 +13,23 @@ export interface Product {
   brewMethod: string;
   altitude: string;
   process: string;
+  reviews: Review[];
+  subscriptionPrice?: number;
+}
+
+export interface Review {
+  id: number;
+  author: string;
+  rating: number;
+  date: string;
+  text: string;
+  verified: boolean;
 }
 
 export interface CartItem {
   product: Product;
   quantity: number;
+  isSubscription: boolean;
 }
 
 export interface OrderForm {
@@ -32,11 +44,10 @@ export interface OrderForm {
 export interface Toast {
   id: number;
   message: string;
-  type: 'success' | 'info' | 'error';
+  type: 'success' | 'info' | 'error' | 'loyalty';
 }
 
-export interface BrewCalc {
-  method: string;
-  cups: number;
-  ratio: number;
+export interface FAQItem {
+  question: string;
+  answer: string;
 }
