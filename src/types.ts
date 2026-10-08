@@ -2,6 +2,7 @@ export interface Product {
   id: number;
   name: string;
   origin: string;
+  country: string;
   category: string;
   price: number;
   weight: string;
@@ -15,6 +16,8 @@ export interface Product {
   process: string;
   reviews: Review[];
   subscriptionPrice?: number;
+  mapPosition?: { x: number; y: number };
+  story?: string;
 }
 
 export interface Review {
@@ -50,4 +53,36 @@ export interface Toast {
 export interface FAQItem {
   question: string;
   answer: string;
+}
+
+export interface Order {
+  id: string;
+  date: string;
+  items: { name: string; quantity: number; price: number; image: string }[];
+  total: number;
+  status: 'preparing' | 'roasting' | 'shipped' | 'delivered';
+  trackingSteps: { label: string; date: string; done: boolean; icon: string }[];
+}
+
+export interface BlogPost {
+  id: number;
+  title: string;
+  excerpt: string;
+  content: string;
+  image: string;
+  author: string;
+  date: string;
+  category: string;
+  readTime: string;
+  tags: string[];
+}
+
+export interface UserProfile {
+  name: string;
+  email: string;
+  memberSince: string;
+  tier: 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
+  favoriteOrigins: string[];
+  favoriteRoasts: string[];
+  savedAddresses: { label: string; address: string; city: string; isDefault: boolean }[];
 }
