@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4c4b0;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8b5e3c;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: #3d2c1e;
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #8b5e3c;
+}
+
+/* Smooth transitions */
+img {
+  transition: opacity 0.3s ease;
+}
+
+/* Toggle switch fix */
+.translate-x-5\.5 {
+  transform: translateX(1.25rem);
+}
+
+/* Select arrow for dark mode */
+html.dark select {
+  color-scheme: dark;
+}
