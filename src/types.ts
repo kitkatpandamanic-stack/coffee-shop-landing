@@ -10,6 +10,9 @@ export interface Product {
   notes: string[];
   image: string;
   rating: number;
+  brewMethod: string;
+  altitude: string;
+  process: string;
 }
 
 export interface CartItem {
@@ -24,4 +27,16 @@ export interface OrderForm {
   address: string;
   city: string;
   zip: string;
+}
+
+export interface Toast {
+  id: number;
+  message: string;
+  type: 'success' | 'info' | 'error';
+}
+
+export interface BrewCalc {
+  method: string;
+  cups: number;
+  ratio: number;
 }

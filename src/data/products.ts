@@ -13,6 +13,9 @@ export const products: Product[] = [
     notes: ['Jasmine', 'Bergamot', 'Peach', 'Honey'],
     image: 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=400&h=400&fit=crop',
     rating: 4.9,
+    brewMethod: 'Pour Over',
+    altitude: '1,900–2,200m',
+    process: 'Washed',
   },
   {
     id: 2,
@@ -26,6 +29,9 @@ export const products: Product[] = [
     notes: ['Caramel', 'Red Apple', 'Milk Chocolate', 'Walnut'],
     image: 'https://images.unsplash.com/photo-1587734195503-904fca47e0e9?w=400&h=400&fit=crop',
     rating: 4.7,
+    brewMethod: 'Drip / Pour Over',
+    altitude: '1,500–1,800m',
+    process: 'Washed',
   },
   {
     id: 3,
@@ -39,6 +45,9 @@ export const products: Product[] = [
     notes: ['Dark Chocolate', 'Tobacco', 'Molasses', 'Cedar'],
     image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefda?w=400&h=400&fit=crop',
     rating: 4.6,
+    brewMethod: 'Espresso',
+    altitude: '800–1,200m',
+    process: 'Natural / Wet-Hulled',
   },
   {
     id: 4,
@@ -52,6 +61,9 @@ export const products: Product[] = [
     notes: ['Blackcurrant', 'Grapefruit', 'Tomato', 'Brown Sugar'],
     image: 'https://images.unsplash.com/photo-1611854779393-1b2da9d400fe?w=400&h=400&fit=crop',
     rating: 4.8,
+    brewMethod: 'Pour Over / AeroPress',
+    altitude: '1,700–2,000m',
+    process: 'Washed',
   },
   {
     id: 5,
@@ -65,6 +77,9 @@ export const products: Product[] = [
     notes: ['Cocoa', 'Plum', 'Vanilla', 'Almond'],
     image: 'https://images.unsplash.com/photo-1498804103079-a6351b050096?w=400&h=400&fit=crop',
     rating: 4.5,
+    brewMethod: 'Drip / French Press',
+    altitude: '1,400–1,800m',
+    process: 'Washed / Natural',
   },
   {
     id: 6,
@@ -78,8 +93,24 @@ export const products: Product[] = [
     notes: ['Earth', 'Dark Cocoa', 'Spice', 'Herbs'],
     image: 'https://images.unsplash.com/photo-1504630083234-14187a9df0f5?w=400&h=400&fit=crop',
     rating: 4.4,
+    brewMethod: 'French Press / Espresso',
+    altitude: '1,100–1,600m',
+    process: 'Wet-Hulled (Giling Basah)',
   },
 ];
 
 export const categories = ['All', 'Single Origin', 'Blend'];
 export const roastLevels = ['All', 'Light', 'Light-Medium', 'Medium', 'Dark'];
+export const sortOptions = [
+  { value: 'featured', label: 'Featured' },
+  { value: 'price-asc', label: 'Price: Low → High' },
+  { value: 'price-desc', label: 'Price: High → Low' },
+  { value: 'rating', label: 'Top Rated' },
+  { value: 'name', label: 'Name A–Z' },
+];
+
+export const promoCodes: Record<string, number> = {
+  'COFFEE10': 10,
+  'BREW20': 20,
+  'FIRST15': 15,
+};
