@@ -1,14 +1,14 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Product, CartItem, OrderForm, Toast, Review, Order, BlogPost } from './types';
-import { products, categories, roastLevels, sortOptions, promoCodes, faqData, FREE_SHIPPING_THRESHOLD, blogPosts, sampleOrders, defaultProfile, roastingTimeline } from './data/products';
+import { Product, CartItem, OrderForm, Toast, Review, Order, BlogPost, ChatMessage } from './types';
+import { products, categories, roastLevels, sortOptions, promoCodes, faqData, FREE_SHIPPING_THRESHOLD, blogPosts, sampleOrders, defaultProfile, roastingTimeline, quizQuestions, quizResults, achievements, bundles, chatResponses } from './data/products';
 import {
   Search, ShoppingCart, X, Plus, Minus, Trash2, Coffee, Star, ArrowLeft, Check, MapPin, Flame, Tag, Menu, Heart, Droplets, Timer, Sparkles,
   Percent, Calculator, Mountain, Leaf, ChevronDown, Moon, Sun, Eye, Repeat, Gift, Award, Send, Scale, User, Package, Map, BookOpen,
   Info, Clock, TrendingUp, Globe, Users, Zap, ChevronRight, BookMarked, Compass, Truck, Home as HomeIcon, ArrowRight,
 } from 'lucide-react';
 
-type View = 'shop' | 'product' | 'cart' | 'checkout' | 'confirmation' | 'wishlist' | 'profile' | 'blog' | 'blog-post' | 'origin-map' | 'about' | 'roasting-timeline' | 'order-tracking';
+type View = 'shop' | 'product' | 'cart' | 'checkout' | 'confirmation' | 'wishlist' | 'profile' | 'blog' | 'blog-post' | 'origin-map' | 'about' | 'roasting-timeline' | 'order-tracking' | 'quiz' | 'bundles';
 
 function loadStorage<T>(key: string, fallback: T): T {
   try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : fallback; } catch { return fallback; }
@@ -40,7 +40,11 @@ export default function App() {
   const [orderForm, setOrderForm] = useState<OrderForm>({ name: '', email: '', phone: '', address: '', city: '', zip: '' });
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
-  const [profileTab, setProfileTab] = useState<'orders' | 'addresses' | 'preferences'>('orders');
+  const [profileTab, setProfileTab] = useState<'orders' | 'addresses' | 'preferences' | 'achievements' | 'referral'>('orders');
+  const [showChat, setShowChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([{ id: 1, sender: 'bot', text: 'Hi! 👋 I\'m your coffee assistant. How can I help you today?', timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
+  const [quizStep, setQuizStep] = useState(0);
+  const [quizAnswers, setQuizAnswers] = useState<string[]>([]);
 
   useEffect(() => { localStorage.setItem('bb-cart3', JSON.stringify(cart)); }, [cart]);
   useEffect(() => { localStorage.setItem('bb-wishlist3', JSON.stringify(wishlist)); }, [wishlist]);
@@ -147,6 +151,8 @@ export default function App() {
 
   const navItems = [
     { label: 'Shop', action: goBack, icon: HomeIcon },
+    { label: 'Bundles', action: () => setView('bundles'), icon: Package },
+    { label: 'Quiz', action: () => { setQuizStep(0); setQuizAnswers([]); setView('quiz'); }, icon: Sparkles },
     { label: 'Origins', action: () => setView('origin-map'), icon: Globe },
     { label: 'Blog', action: () => setView('blog'), icon: BookOpen },
     { label: 'About', action: () => setView('about'), icon: Info },
@@ -335,7 +341,7 @@ export default function App() {
           {view === 'confirmation' && orderPlaced && <motion.div key="confirm" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}><ConfirmationView onContinue={goBack} /></motion.div>}
 
           {/* PROFILE */}
-          {view === 'profile' && <ProfileView key="profile" dark={dm} tab={profileTab} setTab={setProfileTab} orders={sampleOrders} onSelectOrder={(o: Order) => { setSelectedOrder(o); setView('order-tracking'); }} loyaltyPoints={loyaltyPoints} />}
+          {view === 'profile' && <ProfileView key="profile" dark={dm} tab={profileTab} setTab={setProfileTab} orders={sampleOrders} onSelectOrder={(o: Order) => { setSelectedOrder(o); setView('order-tracking'); }} loyaltyPoints={loyaltyPoints} addToast={addToast} />}
 
           {/* ORDER TRACKING */}
           {view === 'order-tracking' && selectedOrder && <OrderTrackingView key="tracking" order={selectedOrder} dark={dm} onBack={() => setView('profile')} />}
@@ -354,8 +360,17 @@ export default function App() {
 
           {/* ROASTING TIMELINE */}
           {view === 'roasting-timeline' && <RoastingTimelineView key="timeline" dark={dm} onBack={() => setView('about')} />}
+
+          {/* QUIZ */}
+          {view === 'quiz' && <QuizView key="quiz" dark={dm} step={quizStep} setStep={setQuizStep} answers={quizAnswers} setAnswers={setQuizAnswers} onBack={goBack} onAddToCart={addToCart} />}
+
+          {/* BUNDLES */}
+          {view === 'bundles' && <BundlesView key="bundles" dark={dm} onAddToCart={addToCart} onViewProduct={openProduct} />}
         </AnimatePresence>
       </main>
+
+      {/* Chat Widget */}
+      <ChatWidget show={showChat} setShow={setShowChat} messages={chatMessages} setMessages={setChatMessages} dark={dm} />
 
       <footer className={`border-t mt-16 py-8 transition-colors ${dm ? 'border-[#3d2c1e] bg-[#1a1410]' : 'border-[#e8ddd0] bg-[#f5efe7]'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -459,11 +474,31 @@ function ShopView(props: any) {
 
 // ===== PRODUCT CARD =====
 function ProductCard({ product, isWishlisted, isComparing, onView, onAdd, onToggleWishlist, onQuickView, onToggleCompare, dark }: any) {
+  const [timeLeft, setTimeLeft] = useState<{ d: number; h: number; m: number } | null>(null);
+  useEffect(() => {
+    if (!product.isLimited || !product.limitedUntil) return;
+    const update = () => {
+      const diff = new Date(product.limitedUntil).getTime() - Date.now();
+      if (diff <= 0) { setTimeLeft(null); return; }
+      setTimeLeft({ d: Math.floor(diff / 86400000), h: Math.floor((diff % 86400000) / 3600000), m: Math.floor((diff % 3600000) / 60000) });
+    };
+    update();
+    const interval = setInterval(update, 60000);
+    return () => clearInterval(interval);
+  }, [product]);
+
   return (
     <div className={`group rounded-2xl overflow-hidden border transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${dark ? 'bg-[#2a2018] border-[#3d2c1e]' : 'bg-white border-[#e8ddd0]'}`}>
       <div className="relative overflow-hidden aspect-square">
         <img src={product.image} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-        <div className="absolute top-3 left-3"><span className={`px-3 py-1 backdrop-blur-sm rounded-full text-xs font-medium ${dark ? 'bg-black/60 text-[#e8ddd0]' : 'bg-white/90 text-[#5a4030]'}`}>{product.category}</span></div>
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+          <span className={`px-3 py-1 backdrop-blur-sm rounded-full text-xs font-medium ${dark ? 'bg-black/60 text-[#e8ddd0]' : 'bg-white/90 text-[#5a4030]'}`}>{product.category}</span>
+          {product.isLimited && timeLeft && (
+            <span className="px-3 py-1 bg-red-600/90 backdrop-blur-sm rounded-full text-[10px] font-bold text-white flex items-center gap-1">
+              <Clock className="w-3 h-3" /> {timeLeft.d}d {timeLeft.h}h {timeLeft.m}m left
+            </span>
+          )}
+        </div>
         <div className="absolute top-3 right-3 flex flex-col gap-1.5">
           <button onClick={e => { e.stopPropagation(); onToggleWishlist(); }} className={`w-8 h-8 rounded-full flex items-center justify-center cursor-pointer ${isWishlisted ? 'bg-red-50 text-red-500' : 'bg-white/90 text-[#7a6352] hover:text-red-500'}`}><Heart className={`w-4 h-4 ${isWishlisted ? 'fill-current' : ''}`} /></button>
           <button onClick={e => { e.stopPropagation(); onQuickView(); }} className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center text-[#7a6352] hover:text-[#8b5e3c] cursor-pointer"><Eye className="w-4 h-4" /></button>
@@ -671,7 +706,7 @@ function ConfirmationView({ onContinue }: any) {
 }
 
 // ===== PROFILE VIEW =====
-function ProfileView({ dark, tab, setTab, orders, onSelectOrder, loyaltyPoints }: any) {
+function ProfileView({ dark, tab, setTab, orders, onSelectOrder, loyaltyPoints, addToast }: any) {
   const tierColors = { Bronze: 'text-amber-700', Silver: 'text-gray-500', Gold: 'text-yellow-600', Platinum: 'text-purple-600' };
   const tierProgress = Math.min((loyaltyPoints % 250) / 250 * 100, 100);
   return (
@@ -703,7 +738,7 @@ function ProfileView({ dark, tab, setTab, orders, onSelectOrder, loyaltyPoints }
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 overflow-x-auto">
-        {[{ id: 'orders', label: 'Orders', icon: Package }, { id: 'addresses', label: 'Addresses', icon: MapPin }, { id: 'preferences', label: 'Preferences', icon: Heart }].map(t => (
+        {[{ id: 'orders', label: 'Orders', icon: Package }, { id: 'addresses', label: 'Addresses', icon: MapPin }, { id: 'preferences', label: 'Preferences', icon: Heart }, { id: 'achievements', label: 'Achievements', icon: Award }, { id: 'referral', label: 'Refer & Earn', icon: Users }].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap cursor-pointer transition ${tab === t.id ? 'bg-[#8b5e3c] text-white' : dark ? 'bg-[#2a2018] border border-[#3d2c1e]' : 'bg-white border border-[#e8ddd0]'}`}><t.icon className="w-4 h-4" />{t.label}</button>
         ))}
       </div>
@@ -751,6 +786,63 @@ function ProfileView({ dark, tab, setTab, orders, onSelectOrder, loyaltyPoints }
             <div className={`rounded-lg p-4 ${dark ? 'bg-[#1a1410]' : 'bg-[#faf7f2]'}`}>
               <p className="text-xs opacity-60 mb-2">We use your preferences to recommend coffees you'll love.</p>
               <p className="text-xs text-[#8b5e3c] font-medium">✦ 3 new coffees match your taste profile</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'achievements' && (
+        <div className="space-y-4">
+          <div className={`rounded-xl border p-4 ${dark ? 'bg-[#2a2018] border-[#3d2c1e]' : 'bg-white border-[#e8ddd0]'}`}>
+            <p className="text-sm opacity-70 mb-2">Unlocked <span className="font-bold text-[#8b5e3c]">{achievements.filter(a => a.unlocked).length}</span> of {achievements.length} achievements</p>
+            <div className={`h-2 rounded-full overflow-hidden ${dark ? 'bg-[#3d2c1e]' : 'bg-[#e8ddd0]'}`}><div className="h-full bg-gradient-to-r from-[#8b5e3c] to-[#c97b3a] rounded-full" style={{ width: `${(achievements.filter(a => a.unlocked).length / achievements.length) * 100}%` }} /></div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {achievements.map(ach => (
+              <div key={ach.id} className={`rounded-xl border p-4 ${ach.unlocked ? '' : 'opacity-60'} ${dark ? 'bg-[#2a2018] border-[#3d2c1e]' : 'bg-white border-[#e8ddd0]'}`}>
+                <div className="flex items-start gap-3">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${ach.unlocked ? 'bg-[#8b5e3c]/10' : dark ? 'bg-[#3d2c1e]' : 'bg-[#f5efe7]'}`}>{ach.icon}</div>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm flex items-center gap-2">{ach.title}{ach.unlocked && <Check className="w-3.5 h-3.5 text-green-600" />}</p>
+                    <p className="text-xs opacity-60 mb-2">{ach.description}</p>
+                    <div className={`h-1.5 rounded-full overflow-hidden ${dark ? 'bg-[#3d2c1e]' : 'bg-[#e8ddd0]'}`}><div className={`h-full rounded-full ${ach.unlocked ? 'bg-green-500' : 'bg-[#c97b3a]'}`} style={{ width: `${(ach.progress / ach.total) * 100}%` }} /></div>
+                    <p className="text-[10px] opacity-50 mt-1">{ach.progress}/{ach.total}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'referral' && (
+        <div className="space-y-4">
+          <div className={`rounded-xl border p-6 text-center ${dark ? 'bg-[#2a2018] border-[#3d2c1e]' : 'bg-white border-[#e8ddd0]'}`}>
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#8b5e3c] to-[#c97b3a] flex items-center justify-center text-white text-2xl mx-auto mb-4">🎁</div>
+            <h3 className="text-xl font-bold mb-2">Refer a Friend, Get $5</h3>
+            <p className="text-sm opacity-70 mb-6 max-w-md mx-auto">Share your unique code with friends. When they make their first order, you both get $5 off!</p>
+            <div className={`inline-flex items-center gap-3 px-5 py-3 rounded-xl border-2 border-dashed ${dark ? 'border-[#3d2c1e] bg-[#1a1410]' : 'border-[#e8ddd0] bg-[#faf7f2]'}`}>
+              <span className="font-mono font-bold text-lg text-[#8b5e3c]">ALEX2026</span>
+              <button onClick={() => { navigator.clipboard?.writeText('ALEX2026'); addToast('Code copied!', 'success'); }} className="px-3 py-1 bg-[#8b5e3c] text-white rounded-lg text-xs font-medium cursor-pointer hover:bg-[#6b4226]">Copy</button>
+            </div>
+          </div>
+          <div className={`rounded-xl border p-5 ${dark ? 'bg-[#2a2018] border-[#3d2c1e]' : 'bg-white border-[#e8ddd0]'}`}>
+            <h4 className="font-semibold mb-3">Your Referral Stats</h4>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div><p className="text-2xl font-bold text-[#8b5e3c]">1</p><p className="text-xs opacity-60">Friends Referred</p></div>
+              <div><p className="text-2xl font-bold text-green-600">$5</p><p className="text-xs opacity-60">Earned</p></div>
+              <div><p className="text-2xl font-bold text-[#c97b3a]">2</p><p className="text-xs opacity-60">More for $10</p></div>
+            </div>
+          </div>
+          <div className={`rounded-xl border p-5 ${dark ? 'bg-[#2a2018] border-[#3d2c1e]' : 'bg-white border-[#e8ddd0]'}`}>
+            <h4 className="font-semibold mb-3">How It Works</h4>
+            <div className="space-y-3">
+              {[{ step: '1', text: 'Share your code with friends' }, { step: '2', text: 'They use it on their first order' }, { step: '3', text: 'You both get $5 off your next order' }].map(s => (
+                <div key={s.step} className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-full bg-[#8b5e3c] text-white text-xs font-bold flex items-center justify-center">{s.step}</div>
+                  <p className="text-sm">{s.text}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -1079,6 +1171,188 @@ function BrewCalculator({ onClose, dark }: any) {
         <p className="text-xs opacity-50 text-center pt-2 border-t border-[#e8ddd0]/30">Ratio: 1:{c.ratio}</p>
       </div>
     </div>
+  );
+}
+
+// ===== QUIZ VIEW =====
+function QuizView({ dark, step, setStep, answers, setAnswers, onBack, onAddToCart }: any) {
+  const currentQ = quizQuestions[step];
+  const isComplete = step >= quizQuestions.length;
+  const handleAnswer = (value: string) => {
+    const newAnswers = [...answers, value];
+    setAnswers(newAnswers);
+    if (step < quizQuestions.length - 1) setStep(step + 1);
+  };
+  const getResult = () => {
+    const key = `${answers[0]}-${answers[1]}-${answers[2]}`;
+    return quizResults[key] || quizResults['default'];
+  };
+  const result = isComplete ? getResult() : null;
+  const resultProduct = result ? products.find(p => p.id === result.productId) : null;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="max-w-2xl mx-auto">
+      <button onClick={onBack} className="flex items-center gap-2 text-[#8b5e3c] mb-6 text-sm font-medium cursor-pointer"><ArrowLeft className="w-4 h-4" /> Back to Shop</button>
+      <div className={`rounded-2xl border p-6 sm:p-10 ${dark ? 'bg-[#2a2018] border-[#3d2c1e]' : 'bg-white border-[#e8ddd0]'}`}>
+        {!isComplete ? (
+          <>
+            <div className="text-center mb-8">
+              <div className="flex items-center justify-center gap-1 mb-4">
+                {quizQuestions.map((_, i) => <div key={i} className={`h-1.5 rounded-full transition-all ${i <= step ? 'bg-[#8b5e3c] w-8' : dark ? 'bg-[#3d2c1e] w-4' : 'bg-[#e8ddd0] w-4'}`} />)}
+              </div>
+              <p className="text-xs opacity-60 mb-2">Question {step + 1} of {quizQuestions.length}</p>
+              <h2 className="text-2xl sm:text-3xl font-bold">{currentQ.question}</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {currentQ.options.map((opt: any) => (
+                <motion.button key={opt.value} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                  onClick={() => handleAnswer(opt.value)}
+                  className={`p-5 rounded-xl border text-left transition-all cursor-pointer ${dark ? 'bg-[#1a1410] border-[#3d2c1e] hover:border-[#8b5e3c]' : 'bg-[#faf7f2] border-[#e8ddd0] hover:border-[#8b5e3c] hover:shadow-md'}`}>
+                  <span className="text-2xl mb-2 block">{opt.emoji}</span>
+                  <span className="font-medium">{opt.label}</span>
+                </motion.button>
+              ))}
+            </div>
+          </>
+        ) : result && resultProduct ? (
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
+            <div className="text-6xl mb-4">{result.emoji}</div>
+            <h2 className="text-2xl sm:text-3xl font-bold mb-2">Your Perfect Match!</h2>
+            <p className="text-lg text-[#8b5e3c] font-medium mb-4">{result.title}</p>
+            <p className="opacity-70 mb-6 max-w-md mx-auto">{result.description}</p>
+            <div className={`rounded-xl border p-4 mb-6 text-left ${dark ? 'bg-[#1a1410] border-[#3d2c1e]' : 'bg-[#faf7f2] border-[#e8ddd0]'}`}>
+              <div className="flex items-center gap-4">
+                <img src={resultProduct.image} alt="" className="w-20 h-20 rounded-lg object-cover" />
+                <div className="flex-1">
+                  <p className="font-bold">{resultProduct.name}</p>
+                  <p className="text-xs opacity-60">{resultProduct.origin}</p>
+                  <div className="flex flex-wrap gap-1 mt-2">{resultProduct.notes.slice(0, 3).map((n: string) => <span key={n} className="px-2 py-0.5 bg-[#8b5e3c]/10 rounded text-[10px] font-medium text-[#8b5e3c]">{n}</span>)}</div>
+                </div>
+                <p className="text-xl font-bold">${resultProduct.price.toFixed(2)}</p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button onClick={() => { onAddToCart(resultProduct); onBack(); }} className="px-6 py-3 bg-[#8b5e3c] text-white rounded-full font-medium hover:bg-[#6b4226] cursor-pointer">Add to Cart & Shop</button>
+              <button onClick={() => { setStep(0); setAnswers([]); }} className={`px-6 py-3 border rounded-full font-medium cursor-pointer ${dark ? 'border-[#3d2c1e]' : 'border-[#e8ddd0]'}`}>Retake Quiz</button>
+            </div>
+          </motion.div>
+        ) : null}
+      </div>
+    </motion.div>
+  );
+}
+
+// ===== BUNDLES VIEW =====
+function BundlesView({ dark, onAddToCart, onViewProduct }: any) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+      <div className="text-center mb-10">
+        <h2 className="text-3xl sm:text-4xl font-bold mb-3">Coffee Bundles</h2>
+        <p className="opacity-70 max-w-xl mx-auto">Curated sets to explore our collection at a special price. Save more, discover more.</p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {bundles.map((bundle) => {
+          const bundleProducts = bundle.products.map(id => products.find(p => p.id === id)!);
+          const savings = bundle.originalPrice - bundle.price;
+          return (
+            <motion.div key={bundle.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+              className={`rounded-2xl border overflow-hidden group hover:shadow-xl transition-all ${dark ? 'bg-[#2a2018] border-[#3d2c1e]' : 'bg-white border-[#e8ddd0]'}`}>
+              <div className="relative aspect-video overflow-hidden">
+                <img src={bundle.image} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                {bundle.badge && <span className="absolute top-3 left-3 px-3 py-1 bg-[#8b5e3c] text-white text-xs font-medium rounded-full">{bundle.badge}</span>}
+                <span className="absolute top-3 right-3 px-3 py-1 bg-green-600 text-white text-xs font-medium rounded-full">Save ${savings.toFixed(2)}</span>
+              </div>
+              <div className="p-5">
+                <h3 className="font-bold text-lg mb-2">{bundle.name}</h3>
+                <p className="text-sm opacity-70 mb-4">{bundle.description}</p>
+                <div className="space-y-2 mb-4">
+                  {bundleProducts.map(p => (
+                    <button key={p.id} onClick={() => onViewProduct(p)} className="flex items-center gap-2 w-full text-left hover:opacity-80 cursor-pointer">
+                      <img src={p.image} alt="" className="w-8 h-8 rounded object-cover" />
+                      <span className="text-xs font-medium flex-1">{p.name}</span>
+                      <span className="text-xs opacity-50">${p.price.toFixed(2)}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-[#e8ddd0]/30">
+                  <div><span className="text-xl font-bold">${bundle.price.toFixed(2)}</span><span className="text-sm opacity-50 line-through ml-2">${bundle.originalPrice.toFixed(2)}</span></div>
+                  <button onClick={() => { bundleProducts.forEach(p => onAddToCart(p)); }} className="px-4 py-2 bg-[#8b5e3c] text-white rounded-full text-sm font-medium hover:bg-[#6b4226] cursor-pointer">Add All</button>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
+// ===== CHAT WIDGET =====
+function ChatWidget({ show, setShow, messages, setMessages, dark }: any) {
+  const [input, setInput] = useState('');
+  const handleSend = () => {
+    if (!input.trim()) return;
+    const userMsg: ChatMessage = { id: Date.now(), sender: 'user', text: input, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+    setMessages([...messages, userMsg]);
+    setInput('');
+    setTimeout(() => {
+      const lower = input.toLowerCase();
+      let response = chatResponses['default'];
+      if (lower.includes('ship')) response = chatResponses['shipping'];
+      else if (lower.includes('subscri')) response = chatResponses['subscription'];
+      else if (lower.includes('grind') || lower.includes('brew')) response = chatResponses['grind'];
+      else if (lower.includes('return') || lower.includes('refund')) response = chatResponses['return'];
+      else if (lower.includes('recommend') || lower.includes('suggest') || lower.includes('which')) response = chatResponses['recommend'];
+      else if (lower.includes('fresh')) response = chatResponses['freshness'];
+      else if (lower.includes('hello') || lower.includes('hi')) response = chatResponses['hello'];
+      else if (lower.includes('help')) response = chatResponses['help'];
+      const botMsg: ChatMessage = { id: Date.now() + 1, sender: 'bot', text: response, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+      setMessages((prev: ChatMessage[]) => [...prev, botMsg]);
+    }, 800);
+  };
+
+  return (
+    <>
+      {/* Chat Button */}
+      <button onClick={() => setShow(!show)} className={`fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all cursor-pointer ${show ? 'bg-red-500 hover:bg-red-600' : 'bg-[#8b5e3c] hover:bg-[#6b4226]'}`}>
+        {show ? <X className="w-6 h-6 text-white" /> : <span className="text-2xl">💬</span>}
+      </button>
+
+      {/* Chat Window */}
+      <AnimatePresence>
+        {show && (
+          <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className={`fixed bottom-24 right-6 z-40 w-80 sm:w-96 rounded-2xl shadow-2xl overflow-hidden border ${dark ? 'bg-[#2a2018] border-[#3d2c1e]' : 'bg-white border-[#e8ddd0]'}`}>
+            <div className="bg-[#8b5e3c] text-white p-4 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl">☕</div>
+              <div><p className="font-medium">Coffee Assistant</p><p className="text-xs opacity-80 flex items-center gap-1"><span className="w-2 h-2 bg-green-400 rounded-full" /> Online</p></div>
+            </div>
+            <div className="h-72 overflow-y-auto p-4 space-y-3">
+              {messages.map((msg: ChatMessage) => (
+                <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${msg.sender === 'user' ? 'bg-[#8b5e3c] text-white rounded-br-sm' : dark ? 'bg-[#3d2c1e] rounded-bl-sm' : 'bg-[#f5efe7] rounded-bl-sm'}`}>
+                    <p>{msg.text}</p>
+                    <p className="text-[10px] opacity-60 mt-1">{msg.timestamp}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className={`p-3 border-t ${dark ? 'border-[#3d2c1e]' : 'border-[#e8ddd0]'}`}>
+              <div className="flex gap-2 mb-2 overflow-x-auto">
+                {['Shipping', 'Subscription', 'Recommend'].map(q => (
+                  <button key={q} onClick={() => { setInput(q); }} className={`px-3 py-1 rounded-full text-xs whitespace-nowrap cursor-pointer ${dark ? 'bg-[#3d2c1e] hover:bg-[#4a3828]' : 'bg-[#f5efe7] hover:bg-[#e8ddd0]'}`}>{q}</button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} placeholder="Type a message..."
+                  className={`flex-1 px-3 py-2 border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-[#c97b3a]/40 ${dark ? 'bg-[#1a1410] border-[#3d2c1e]' : 'border-[#e8ddd0]'}`} />
+                <button onClick={handleSend} className="w-9 h-9 bg-[#8b5e3c] text-white rounded-full flex items-center justify-center hover:bg-[#6b4226] cursor-pointer"><Send className="w-4 h-4" /></button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
